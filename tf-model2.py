@@ -30,7 +30,7 @@ from numpy.lib.recfunctions import append_fields
 import scipy
 import scipy.special
 
-from mpnn import *  #KYR - Add MPNN functions
+from mpnn import *  #Add MPNN functions
 
 elem_labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 class_labels = [0, 1, 2, 11, 13, 22, 130, 211]
@@ -317,11 +317,8 @@ class PFNet(tf.keras.Model):
 
     #@tf.function(input_signature=[tf.TensorSpec(shape=[None, 15], dtype=tf.float32)])
     def call(self, inputs, training=True):
-        print(' inputs 1 are {}'.format(inputs.shape))
         X = inputs
-        #tf.print(X.shape)
         enc, dm = self.predict_distancematrix(X, training=training)
-        print(' enc 1 are {}'.format(enc.shape))
 
         x = self.layer_input1(enc)
         x = self.layer_input1_do(x, training)
@@ -330,7 +327,6 @@ class PFNet(tf.keras.Model):
         x = self.layer_input3(x)
         x = self.layer_input3_do(x, training)
         x = self.layer_conv1(x, dm)
-        print('x fed into id {}'.format(x.shape))
         x = self.layer_id1(x)
         x = self.layer_id2(x)
         x = self.layer_id3(x)
@@ -345,7 +341,6 @@ class PFNet(tf.keras.Model):
         x = self.layer_input3_momentum_do(x, training)
         x = tf.concat([x, out_id_logits], axis=-1)
         x = self.layer_conv2(x, dm)
-        print('x fed into momentum {}'.format(x.shape))
         x = self.layer_momentum1(x)
         x = self.layer_momentum2(x)
         x = self.layer_momentum3(x)
@@ -355,8 +350,6 @@ class PFNet(tf.keras.Model):
         out_id = tf.argmax(out_id_logits, axis=-1)
         msk_good = tf.cast(out_id != 0, tf.float32)
 
-        print('X shape is {}'.format(X.shape))
-        print('pred corr shape is {}'.format(pred_corr.shape))
         out_momentum_eta = X[:, :, 2] + pred_corr[:, :, 0]
         out_momentum_phi = X[:, :, 3] + pred_corr[:, :, 1] 
         out_momentum_E = X[:, :, 4] + pred_corr[:, :, 2]
@@ -367,16 +360,13 @@ class PFNet(tf.keras.Model):
             out_momentum_E,
         ], axis=-1)
         
-        print('out id log {} \n out_charge {} \n out_momentum {}'.format(out_id_logits.shape, out_charge.shape, out_momentum.shape))
         ret = tf.concat([out_id_logits, out_momentum, out_charge], axis=-1)
-        print('ret is {} , {}, {}'.format(ret.shape[0], ret[1].shape, ret[2].shape))
-#         assert(states[0] == node_elem[0])
         return ret
 
 #KX
 class PFNet2(tf.keras.Model):
     
-    def __init__(self, hidden_sizes = [256, 256], num_outputs = 256, state_dim = 64, update_steps = 3, activation=tf.nn.selu, hidden_dim=256, distance_dim=32, num_conv=1, convlayer="sgconv", dropout=0.1):
+    def __init__(self, hidden_sizes = [256, 256], num_outputs = 256, state_dim = 64, update_steps = 5, activation=tf.nn.selu, hidden_dim=256, distance_dim=32, num_conv=1, convlayer="sgconv", dropout=0.1):
         super(PFNet2, self).__init__()
         self.activation = activation
 
@@ -403,10 +393,11 @@ class PFNet2(tf.keras.Model):
     def call(self, inputs, training=True):
         x = self.enc(inputs)
         nodes = x
-        bs = nodes.shape[0] #batch size
+        bs = nodes.shape[0] 
+        bs = 10
         node_elem = nodes.shape[1] # number of particles (elements)
         node_cols = nodes.shape[2] #25 is the node.shape[1] after encoding
-        edges = tf.constant(1., dtype = "float32", shape= [bs,  np.power(node_elem, 2), 1])
+        edges = tf.constant(0, dtype = "float32", shape= [bs,  np.power(node_elem, 2), 1])
         edge_masks = tf.cast(tf.random.uniform([bs,np.power(node_elem,2), 1], 
                                         minval=0, maxval=2, dtype=tf.dtypes.int32), dtype=tf.dtypes.float32)
         states = self.node_embedding(nodes)
@@ -415,7 +406,6 @@ class PFNet2(tf.keras.Model):
             states = self.message_passing(states, edges, edge_masks, training=training)
         node_masks = tf.constant(1., dtype = "float32", shape= [bs, node_elem,1]) 
         readout = self.readout_func(states, node_masks, training=training)
-        print('readout is {}'.format(readout.shape))
         
         x = self.layer_id1(readout)
         x = self.layer_id2(x)
@@ -432,9 +422,9 @@ class PFNet2(tf.keras.Model):
         out_id = tf.argmax(out_id_logits, axis=-1)
         msk_good = tf.cast(out_id != 0, tf.float32)
 
-        out_momentum_eta = X[:, :, 2] + pred_corr[:, :, 0]
-        out_momentum_phi = X[:, :, 3] + pred_corr[:, :, 1] 
-        out_momentum_E = X[:, :, 4] + pred_corr[:, :, 2]
+        out_momentum_eta = inputs[:, :, 2] + pred_corr[:, :, 0]
+        out_momentum_phi = inputs[:, :, 3] + pred_corr[:, :, 1] 
+        out_momentum_E = inputs[:, :, 4] + pred_corr[:, :, 2]
 
         out_momentum = tf.stack([
             out_momentum_eta,
@@ -775,7 +765,7 @@ def load_dataset_ttbar(datapath):
 
 if __name__ == "__main__":
     #tf.debugging.enable_check_numerics()
-    tf.config.experimental_run_functions_eagerly(False)
+    tf.config.experimental_run_functions_eagerly(True)
 
     args = parse_args()
 
@@ -801,6 +791,7 @@ if __name__ == "__main__":
     ds_test = dataset.skip(args.ntrain).take(args.ntest).map(weight_schemes[args.weights]).padded_batch(batch_size, padded_shapes=ps)
  
     ds_train_r = ds_train.repeat(args.nepochs)
+    #add a print statement to see what's going on
     ds_test_r = ds_test.repeat(args.nepochs)
     
 
@@ -817,7 +808,7 @@ if __name__ == "__main__":
         opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 #         model = PFNet(hidden_dim=args.nhidden, distance_dim=args.distance_dim, num_conv=args.num_conv, convlayer=args.convlayer, dropout=args.dropout)
 #         KX
-        model = PFNet2(hidden_sizes = [256, 256], num_outputs = 256, state_dim = 64, update_steps = 3,hidden_dim=args.nhidden, distance_dim=args.distance_dim, num_conv=args.num_conv, convlayer=args.convlayer, dropout=args.dropout)
+        model = PFNet2(hidden_sizes = [128, 128], num_outputs = 128, state_dim = 16, update_steps = 3,hidden_dim=args.nhidden, distance_dim=args.distance_dim, num_conv=args.num_conv, convlayer=args.convlayer, dropout=args.dropout)
 
     if not os.path.isdir("experiments"):
         os.makedirs("experiments")
@@ -880,6 +871,8 @@ if __name__ == "__main__":
         model.compile(optimizer=opt, loss=loss_fn,
             metrics=[cls_130, cls_211, cls_22, energy_resolution, eta_resolution, phi_resolution],
             sample_weight_mode="temporal")
+        print('COMPILE DONE \n')
+        print('This is model 2')
 
 
         if args.load:
