@@ -5,7 +5,7 @@ Copy-paste in particleflow/test
 ## Run tf-model2.py
 
 ```
-singularity exec -B /storage --nv ~jpata/gpuservers/singularity/images/pytorch.simg  python3 test/tf_model2.py --target cand --ntrain 20000 --ntest 5000 --nepochs 5 --lr 0.00005  --datapath /storage/group/gpu/bigdata/particleflow/TTbar_14TeV_TuneCUETP8M1_cfi  --nhidden 128 --distance-dim 128 --num-conv 4 --weights inverse --lr-decay 0.99 --convlayer ghconv
+singularity exec -B /storage --nv ~jpata/gpuservers/singularity/images/pytorch.simg  python3 test/tf_model2.py --target cand --ntrain 20000 --ntest 5000 --nepochs 10 --lr 0.00005  --datapath /storage/group/gpu/bigdata/particleflow/TTbar_14TeV_TuneCUETP8M1_cfi  --nhidden 128 --distance-dim 128 --num-conv 4 --weights inverse --lr-decay 0.99 --convlayer ghconv
 ```
 
 ## Run pred_tf_model.py
